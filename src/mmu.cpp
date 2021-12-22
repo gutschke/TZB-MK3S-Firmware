@@ -10,6 +10,7 @@
 #include "fsensor.h"
 #include "cardreader.h"
 #include "cmdqueue.h"
+#include "menu.h"
 #include "ultralcd.h"
 #include "sound.h"
 #include "printers.h"
