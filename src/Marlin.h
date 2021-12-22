@@ -239,9 +239,11 @@ void update_currents();
 void get_coordinates();
 void prepare_move();
 void kill(const char *full_screen_message = NULL, unsigned char id = 0);
-void Stop();
-bool IsStopped();
 void finishAndDisableSteppers();
+
+void UnconditionalStop(); // Stop heaters, motion and clear current print status
+void Stop();              // Emergency stop used by overtemp functions which allows recovery
+bool IsStopped();         // Returns true if the print has been stopped
 
 //put an ASCII command at the end of the current buffer, read from flash
 #define enquecommand_P(cmd) enquecommand(cmd, true)
@@ -505,6 +507,7 @@ void marlin_wait_for_click();
 void raise_z_above(float target, bool plan=true);
 
 extern "C" void softReset();
+void stack_error();
 
 extern uint32_t IP_address;
 
