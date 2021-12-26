@@ -3278,7 +3278,11 @@ static void gcode_G80()
         }
 
         // Go down until endstop is hit
+#ifdef BLTOUCH
+        const float Z_CALIBRATION_THRESHOLD = 3.f;
+#else
         const float Z_CALIBRATION_THRESHOLD = 1.f;
+#endif // BLTOUCH
         if (!find_bed_induction_sensor_point_z((has_z && mesh_point > 0) ? z0 - Z_CALIBRATION_THRESHOLD : -10.f, nProbeRetry)) { //if we have data from z calibration max allowed difference is 1mm for each point, if we dont have data max difference is 10mm from initial point
             printf_P(_T(MSG_BED_LEVELING_FAILED_POINT_LOW));
             break;
