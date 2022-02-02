@@ -347,6 +347,31 @@ void mmu_loop(void)
     else enquecommand_front_P(PSTR("M600")); //save print and run M600 command
   }
 
+  if (((mmu_state == S::Idle) || (mmu_state == S::Wait)) && ((tData1 == 'S') && (tData2 == 'T') && (tData3 == 'R')))
+  { // MMU2S Reset Identified, advise what state it should be in to continue.
+    printf_P(PSTR("MMU2S => MK32S Hey, I just booted but it looks like your mid-print, what do?\n"));
+
+    // Set mode of MMU2S, probably need to have a second init set that runs through this recovery.
+    // Note that filament types will need to be re-communicated to MMU2S.
+
+    if (mmu_state == S::Idle)
+    {
+      uart2_txPayload((unsigned char *)"S1---");
+      mmu_state = S::GetVer;
+      return;
+    }
+    else
+    {
+      // unsigned char tempSetMode[5] = {'M', SilentModeMenu_MMU, BLK, BLK, BLK};
+      // uart2_txPayload(tempSetMode);
+      // I think this needs to address a unique statemmu_state = S::SetModeInit;
+
+      // Reset last cmd and idle state to process
+      mmu_cmd = mmu_last_cmd;
+      mmu_state = S::Idle;
+    }
+  }
+
   switch (mmu_state)
   {
   case S::Disabled:
@@ -508,6 +533,7 @@ void mmu_loop(void)
         uart2_txPayload(tempKxCMD);
         mmu_state = S::Wait;
       }
+      mmu_last_cmd = mmu_cmd; // backup previous cmd before cleared.
       mmu_cmd = MmuCmd::None;
     }
     else if ((eeprom_read_byte((uint8_t*)EEPROM_MMU_STEALTH) != SilentModeMenu_MMU) && mmu_ready)
@@ -539,7 +565,6 @@ void mmu_loop(void)
       printf_P(PSTR("MMU2S => MK32S 'ok'\n"));
       #endif
       mmu_attempt_nr = 0;
-      mmu_last_cmd = MmuCmd::None;
       mmu_ready = true;
       mmu_state = S::Idle;
     }
@@ -581,7 +606,6 @@ void mmu_command(MmuCmd cmd)
   if ((cmd >= MmuCmd::T0) && (cmd <= MmuCmd::T4)) { ad_markLoaded(cmd - MmuCmd::T0); shutdownE0(); }
   if ((cmd >= MmuCmd::L0) && (cmd <= MmuCmd::L4)) ad_markLoaded(cmd - MmuCmd::L0);
   if ((cmd >= MmuCmd::E0) && (cmd <= MmuCmd::E4)) shutdownE0();
-  mmu_last_cmd = mmu_cmd;
   mmu_cmd = cmd;
   mmu_ready = false;
 }
