@@ -2500,11 +2500,7 @@ void homeaxis(int axis, uint8_t cnt)
         deployBLT();
 #endif // BLTOUCH
         destination[axis] = 2*home_retract_mm(axis) * axis_home_dir;
-#ifndef BLTOUCH
         feedrate = homing_feedrate[axis]/2 ;
-#else
-        feedrate = HOMING_FEEDRATE_BLT / 2 ;
-#endif // BLTOUCH
         plan_buffer_line_destinationXYZE(feedrate/60);
         st_synchronize();
 #ifdef BLTOUCH
