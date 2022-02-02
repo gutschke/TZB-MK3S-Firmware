@@ -338,8 +338,12 @@ void mmu_loop(void)
     printf_P(PSTR("// action:m600\n"));
     #endif // OCTO_NOTIFICATIONS_ON
     fsensor_checkpoint_print();
-    ad_markDepleted(mmu_extruder);
-    if (lcd_autoDepleteEnabled() && !ad_allDepleted()) enquecommand_front_P(PSTR("M600 AUTO")); //save print and run M600 command
+    if (lcd_autoDepleteEnabled())
+    {
+      ad_markDepleted(mmu_extruder);
+      if (!ad_allDepleted()) enquecommand_front_P(PSTR("M600 AUTO")); //save print and run M600 command
+      else enquecommand_front_P(PSTR("M600")); //save print and run M600 command
+    }
     else enquecommand_front_P(PSTR("M600")); //save print and run M600 command
   }
 
