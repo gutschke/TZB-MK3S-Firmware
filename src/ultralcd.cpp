@@ -2124,6 +2124,7 @@ void lcd_set_filament_oq_meass()
 
 
 FilamentAction eFilamentAction=FilamentAction::None; // must be initialized as 'non-autoLoad'
+bool unloadMmuCut = false;
 bool bFilamentFirstRun;
 bool bFilamentPreheatState;
 bool bFilamentAction=false;
@@ -6252,7 +6253,7 @@ static void mmu_fil_eject_menu()
 
 static void mmu_cut_filament_menu()
 {
-    if(bFilamentAction || !isEXTLoaded)
+    if(bFilamentAction || (!isEXTLoaded && !mmu_finda))
     {
         MENU_BEGIN();
         MENU_ITEM_BACK_P(_T(MSG_MAIN));
@@ -6265,14 +6266,8 @@ static void mmu_cut_filament_menu()
     }
     else
     {
-        eFilamentAction=FilamentAction::MmuCut;
-        bFilamentFirstRun=false;
-        if(target_temperature[0]>=EXTRUDE_MINTEMP)
-        {
-            bFilamentPreheatState=true;
-            mFilamentItem(target_temperature[0],target_temperature_bed);
-        }
-        else lcd_generic_preheat_menu();
+        unloadMmuCut = true;
+		mmu_unload_filament();
     }
 }
 #endif //MMU_HAS_CUTTER

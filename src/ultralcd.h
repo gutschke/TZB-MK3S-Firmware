@@ -193,6 +193,7 @@ enum class FilamentAction : uint_least8_t
 };
 
 extern FilamentAction eFilamentAction;
+extern bool unloadMmuCut;
 extern bool bFilamentFirstRun;
 extern bool bFilamentPreheatState;
 extern bool bFilamentAction;

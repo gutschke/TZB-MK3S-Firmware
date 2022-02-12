@@ -35,7 +35,6 @@
 #define MMU_TIMEOUT 10
 #define MMU_IRSENS_TIMEOUT 3000ul
 #define MMU_CMD_TIMEOUT 300000ul // 5min timeout for mmu commands (except P0)
-static uint8_t mmu_attempt_nr = 0;
 
 #ifdef MMU_HWRESET
 #define MMU_RST_PIN 76
@@ -54,7 +53,9 @@ namespace
     Disabled,
     Idle,
     Wait,
-    Setup
+    Setup,
+    Recover,
+    RecoverResend
   };
 }
 
@@ -100,13 +101,14 @@ bool isMMUPrintPaused = false;
 int lastLoadedFilament = -10;
 uint16_t mmu_power_failures = 0;
 void shutdownE0(bool shutdown = true);
-void checkIR_SENSOR(void);
 
 uint16_t toolChanges = 0;
 uint8_t mmuE0BackupCurrents[2] = {0, 0};
 #define TXTimeout 60 //60ms
 uint8_t mmu_filament_types[5] = {0, 0, 0, 0, 0};
 void mmu_unload_synced(uint16_t _filament_type_speed);
+void mmu_set_all_current_filament_types(void);
+void mmu_cut_filament(uint8_t filament_nr);
 
 //idler ir sensor
 bool mmu_idl_sens = false;
@@ -143,6 +145,7 @@ bool check_for_ir_sensor()
 static S mmu_state = S::Disabled; //int8_t mmu_state = 0;
 MmuCmd mmu_cmd = MmuCmd::None;
 MmuCmd mmu_last_cmd = MmuCmd::None;
+MmuCmd mmu_last_cmd_backup = MmuCmd::None;
 uint8_t mmu_extruder = 0;
 
 //! This variable probably has no meaning and is planed to be removed
@@ -195,7 +198,7 @@ void mmu_loop(void)
 {
   uint8_t filament = 0;
 #ifdef MMU_DEBUG
-  printf_P(PSTR("MMU loop, state=%d\n"), (int)mmu_state);
+  //printf_P(PSTR("MMU loop, state=%d\n"), (int)mmu_state);
 #endif //MMU_DEBUG
 
   cli();
@@ -349,26 +352,18 @@ void mmu_loop(void)
 
   if (((mmu_state == S::Idle) || (mmu_state == S::Wait)) && ((tData1 == 'S') && (tData2 == 'T') && (tData3 == 'R')))
   { // MMU2S Reset Identified, advise what state it should be in to continue.
-    printf_P(PSTR("MMU2S => MK32S Hey, I just booted but it looks like your mid-print, what do?\n"));
-
-    // Set mode of MMU2S, probably need to have a second init set that runs through this recovery.
-    // Note that filament types will need to be re-communicated to MMU2S.
-
+    unsigned char tempSetMode[5] = {'M', SilentModeMenu_MMU, BLK, BLK, BLK};
+    uart2_txPayload(tempSetMode);
     if (mmu_state == S::Idle)
     {
-      uart2_txPayload((unsigned char *)"S1---");
-      mmu_state = S::GetVer;
-      return;
+      if (!is_usb_printing && !IS_SD_PRINTING) printf_P(PSTR("MMU2S => MK32S Hey, I just rebooted, can we resync?\n"));
+      else printf_P(PSTR("MMU2S => MK32S Hey, I just rebooted midprint, can we resync?\n"));
+      mmu_state = S::Recover;
     }
     else
     {
-      // unsigned char tempSetMode[5] = {'M', SilentModeMenu_MMU, BLK, BLK, BLK};
-      // uart2_txPayload(tempSetMode);
-      // I think this needs to address a unique statemmu_state = S::SetModeInit;
-
-      // Reset last cmd and idle state to process
-      mmu_cmd = mmu_last_cmd;
-      mmu_state = S::Idle;
+      printf_P(PSTR("MMU2S => MK32S Hey, I just rebooted midprint, can we resync?\n"));
+      mmu_state = S::RecoverResend;
     }
   }
 
@@ -440,7 +435,22 @@ void mmu_loop(void)
       mmu_state = S::Idle;
     }
     return; // Exit method.
-  case S::SetMode:
+  case S::Recover:
+    if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == 'M') && (tData4 == SilentModeMenu_MMU))
+    {
+      mmu_state = S::Idle;
+      mmu_set_all_current_filament_types();
+    }
+    return;
+  case S::RecoverResend:
+    if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == 'M') && (tData4 == SilentModeMenu_MMU))
+    {
+      mmu_last_cmd_backup = mmu_cmd;
+      mmu_state = S::Idle;
+      mmu_set_all_current_filament_types();
+      mmu_cmd = mmu_last_cmd_backup;
+    }
+    return;case S::SetMode:
     if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == 'M') && (tData4 == SilentModeMenu_MMU))
     {
 			eeprom_update_byte((uint8_t*)EEPROM_MMU_STEALTH, SilentModeMenu_MMU);
@@ -564,7 +574,6 @@ void mmu_loop(void)
       #ifdef MMU_DEBUG
       printf_P(PSTR("MMU2S => MK32S 'ok'\n"));
       #endif
-      mmu_attempt_nr = 0;
       mmu_ready = true;
       mmu_state = S::Idle;
     }
@@ -595,6 +604,17 @@ void mmu_set_filament_type(uint8_t extruder, uint8_t filament)
   mmu_command(MmuCmd::F0 + extruder);
   manage_response(false, false);
 } // End of mmu_set_filament_type() method.
+
+//! @brief MMU Set All Current Filament Types
+//! as we're midprint and MMU2S has been reset.
+void mmu_set_all_current_filament_types()
+{
+  mmu_set_filament_type(0,mmu_filament_types[0]);
+  mmu_set_filament_type(1,mmu_filament_types[1]);
+  mmu_set_filament_type(2,mmu_filament_types[2]);
+  mmu_set_filament_type(3,mmu_filament_types[3]);
+  mmu_set_filament_type(4,mmu_filament_types[4]);
+}
 
 //! @brief Enqueue MMUv2 command
 //!
@@ -668,7 +688,6 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
 	float x_position_bckp = current_position[X_AXIS];
 	float y_position_bckp = current_position[Y_AXIS];
 	uint8_t screen = 0; //used for showing multiscreen messages
-  //bool mmu_response = mmu_get_response();
 	while(!mmu_get_response())
 	{
     if (!mmu_print_saved) { //first occurence, we are saving current position, park print head in certain position and disable nozzle heater
@@ -924,10 +943,7 @@ void mmu_M600_load_filament(bool automatic, float nozzle_temp)
       tmp_extruder = choose_extruder_menu();
 #endif //MMU_M600_SWITCH_EXTRUDER
   }
-  else
-  {
-    tmp_extruder = ad_getAlternative(tmp_extruder);
-  }
+  else tmp_extruder = ad_getAlternative(tmp_extruder);
   lcd_update_enable(false);
   lcd_clear();
   lcd_set_cursor(0, 1);
@@ -1087,6 +1103,10 @@ void extr_unload()
     mmu_command(MmuCmd::U0);
     // get response
     manage_response(false, true);
+    if (unloadMmuCut) {
+      mmu_cut_filament(mmu_extruder);
+      unloadMmuCut = false;
+    }
     lcd_setstatuspgm(_T(WELCOME_MSG));
     lcd_return_to_status();
   }
