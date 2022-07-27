@@ -1263,16 +1263,17 @@ void mmu_continue_loading(void)
     {
     case Ls::Enter:
         increment_load_fail();
-        
+        goto LsRetry;
         // no break, fall to next case
     case Ls::Retry:
+    LsRetry:
         ++retry;
         if (retry <= max_retries)
         {
             mmu_command(MmuCmd::U0);
             manage_response(false, true);
             #ifdef MMU_HAS_CUTTER
-            if (1 == eeprom_read_byte((uint8_t*)EEPROM_MMU_CUTTER_ENABLED))
+            if (0 != eeprom_read_byte((uint8_t*)EEPROM_MMU_CUTTER_ENABLED))
             {
                 mmu_command(MmuCmd::K0 + tmp_extruder);
                 manage_response(true, true);

@@ -219,7 +219,8 @@ extern uint16_t stepper_timer_overflow_last;
 void checkHitEndstops()
 {
  if( endstop_x_hit || endstop_y_hit || endstop_z_hit 
- #ifdef BLTOUCH || endstop_z_blt_hit 
+ #ifdef BLTOUCH
+     || endstop_z_blt_hit
  #endif // BLTOUCH
  ) {
    SERIAL_ECHO_START;
@@ -237,7 +238,7 @@ void checkHitEndstops()
      SERIAL_ECHOPAIR(" Z:",(float)endstops_trigsteps[Z_AXIS]/cs.axis_steps_per_unit[Z_AXIS]);
 //     LCD_MESSAGERPGM(CAT2((MSG_ENDSTOPS_HIT),PSTR("Z")));
    }
-#else BLTOUCH
+#else // BLTOUCH
    if(endstop_z_blt_hit) {
      SERIAL_ECHOPAIR(" Z-BLT:",(float)endstops_trigsteps[Z_AXIS]/cs.axis_steps_per_unit[Z_AXIS]);
    }

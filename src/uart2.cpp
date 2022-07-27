@@ -49,7 +49,7 @@ void uart2_init(void)
 ISR(USART2_RX_vect)
 {
     readRxBuffer = UDR2;
-    if (rxTimeout + 1855 < _micros()) rxCount = rx::Idle;
+    if ((long)(_micros() - (rxTimeout + 1855)) >= 0) rxCount = rx::Idle;
     switch (rxCount) {
     case rx::Idle:
         if (readRxBuffer == 0x7F) { rxCount++; rxTimeout = _micros(); }

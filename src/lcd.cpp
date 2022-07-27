@@ -195,7 +195,8 @@ static void lcd_begin(uint8_t clear)
 	// set the entry mode
 	lcd_command(LCD_ENTRYMODESET | lcd_displaymode);
 	
-	#else
+#else
+    if (clear) { } // UNUSED
     lcd_displaycontrol = LCD_CURSOROFF | LCD_BLINKOFF;
     lcd_displaymode = LCD_ENTRYLEFT | LCD_ENTRYSHIFTDECREMENT;
     lcd_send(LCD_FUNCTIONSET | LCD_8BITMODE, LOW | LCD_HALF_FLAG, 510); // 0011xxxx //set to 8BIT mode
